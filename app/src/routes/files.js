@@ -1,16 +1,28 @@
 const express = require("express");
-const router = express.Router();
 const fs = require("fs");
 const path = require("path");
 
-const UPLOADS_DIR = path.join(__dirname, "..", "..", "uploads");
+const router = express.Router();
 
-// GET /api/files/:filename - lê e devolve o conteúdo de um arquivo da pasta uploads/
+const allowedFiles = new Map([
+  [
+    "bem-vindo.txt",
+    path.join(__dirname, "..", "..", "uploads", "bem-vindo.txt"),
+  ],
+]);
+
 router.get("/:filename", (req, res) => {
-  const filePath = path.join(UPLOADS_DIR, req.params.filename);
+  const filePath = allowedFiles.get(req.params.filename);
+
+  if (!filePath) {
+    return res.status(404).json({ error: "Arquivo não encontrado" });
+  }
 
   fs.readFile(filePath, "utf8", (err, data) => {
-    if (err) return res.status(404).json({ error: "Arquivo não encontrado" });
+    if (err) {
+      return res.status(404).json({ error: "Arquivo não encontrado" });
+    }
+
     res.type("text/plain").send(data);
   });
 });

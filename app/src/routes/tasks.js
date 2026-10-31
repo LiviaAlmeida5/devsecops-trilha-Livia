@@ -9,15 +9,22 @@ router.get("/", (req, res) => {
 
 // GET /api/tasks/filter?expr=<expressão> - filtro avançado de tarefas
 router.get("/filter", (req, res) => {
-  const { expr } = req.query;
-  if (!expr) return res.status(400).json({ error: "Parâmetro 'expr' é obrigatório" });
-  try {
-    const tasks = db.listTasks();
-    const result = tasks.filter((t) => eval(expr));
-    res.json(result);
-  } catch (err) {
-    res.status(400).json({ error: "Expressão inválida", details: err.message });
+  const { done, owner } = req.query;
+
+  if (done !== undefined && done !== "true" && done !== "false") {
+    return res.status(400).json({ error: "done deve ser true ou false" });
   }
+
+  if (owner !== undefined && typeof owner !== "string") {
+    return res.status(400).json({ error: "owner deve ser uma string" });
+  }
+
+  const result = db.listTasks().filter((task) =>
+    (done === undefined || task.done === (done === "true")) &&
+    (owner === undefined || task.owner === owner)
+  );
+
+  res.json(result);
 });
 
 // GET /api/tasks/:id - busca uma tarefa pelo id
