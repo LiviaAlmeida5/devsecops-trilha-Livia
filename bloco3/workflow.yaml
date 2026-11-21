@@ -1,0 +1,90 @@
+name: Continuos Integration
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-sast:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Usar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Instalar dependências
+        working-directory: app
+        run: npm ci
+
+      - name: SAST - bloquear achados WARNING e ERROR
+        run: |
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE:/src" \
+            -w /src \
+            semgrep/semgrep:latest \
+            semgrep scan \
+              --config p/javascript \
+              --config p/security-audit \
+              --severity WARNING \
+              --severity ERROR \
+              --error \
+              --strict \
+              --metrics=off \
+              app/src
+
+  
+  trivy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verificar dependências
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: app
+          scanners: vuln
+          severity: CRITICAL
+          exit-code: '1'
+
+      - name: Construir imagem Docker
+        run: docker build -t task-api:ci ./app
+
+      - name: Verificar imagem Docker
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: image
+          image-ref: task-api:ci
+          scanners: vuln
+          severity: CRITICAL
+          exit-code: '1'
+
+
+  gitleaks:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verificar segredos
+        run: |
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE:/repo:ro" \
+            -w /repo \
+            zricethezav/gitleaks:v8.30.1 \
+            git --redact .
